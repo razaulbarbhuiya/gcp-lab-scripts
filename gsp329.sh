@@ -8,55 +8,48 @@ echo "======================================"
 
 PROJECT_ID=$(gcloud config get-value project)
 
-echo ""
 echo "Project ID: $PROJECT_ID"
 
-echo ""
-echo "Enter TARGET LANGUAGE (example: en)"
-read TARGET_LANG
+LANGUAGE="French"
+LOCALE="fr"
 
-echo ""
-echo "Enter TARGET LOCALE (example: en_US or fr)"
-read TARGET_LOCALE
-
-SA_NAME=ml-api-sa
+SA_NAME="ml-api-sa"
 
 echo ""
 echo "Enabling APIs..."
 
-gcloud services enable vision.googleapis.com \
-translate.googleapis.com \
-bigquery.googleapis.com \
-cloudtranslate.googleapis.com
+gcloud services enable vision.googleapis.com
+gcloud services enable translate.googleapis.com
+gcloud services enable bigquery.googleapis.com
 
 echo ""
 echo "Creating Service Account..."
 
-gcloud iam service-accounts create $SA_NAME
+gcloud iam service-accounts create $SA_NAME --quiet
 
 SA_EMAIL=$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com
 
 echo ""
-echo "Adding IAM roles..."
+echo "Adding IAM Roles..."
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
 --member="serviceAccount:$SA_EMAIL" \
---role="roles/bigquery.dataEditor"
+--role="roles/bigquery.dataEditor" --quiet
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
 --member="serviceAccount:$SA_EMAIL" \
---role="roles/storage.objectAdmin"
+--role="roles/storage.objectAdmin" --quiet
 
 echo ""
 echo "Creating key..."
 
 gcloud iam service-accounts keys create key.json \
---iam-account=$SA_EMAIL
+--iam-account=$SA_EMAIL --quiet
 
 export GOOGLE_APPLICATION_CREDENTIALS=key.json
 
 echo ""
-echo "Downloading starter script..."
+echo "Downloading analyze-images-v2.py ..."
 
 gsutil cp gs://$PROJECT_ID/analyze-images-v2.py .
 
@@ -70,26 +63,26 @@ google-cloud-bigquery \
 pandas pandas-gbq -q
 
 echo ""
-echo "Patching Python script..."
+echo "Patching script..."
 
-sed -i "s/# TBD: CALL THE VISION API/response = vision_client.text_detection(image=image)\n    texts = response.text_annotations/g" analyze-images-v2.py
+sed -i "/# TBD:/c\    response = vision_client.text_detection(image=image)\n    texts = response.text_annotations" analyze-images-v2.py
 
-sed -i "s/# TBD: GET TEXT FROM IMAGE/text = texts\[0\].description/g" analyze-images-v2.py
+sed -i "/# TBD:/c\    text = texts[0].description" analyze-images-v2.py
 
-sed -i "s/# TBD: TRANSLATE TEXT/result = translate_client.translate(text,target_language='$TARGET_LANG')\n        translation = result\['translatedText'\]/g" analyze-images-v2.py
+sed -i "/# TBD:/c\        result = translate_client.translate(text, target_language='en')\n        translation = result['translatedText']" analyze-images-v2.py
 
 sed -i "s/#df.to_gbq/df.to_gbq/g" analyze-images-v2.py
 
 echo ""
-echo "Running script..."
+echo "Running Python script..."
 
-python3 analyze-images-v2.py
+python3 analyze-images-v2.py $PROJECT_ID $PROJECT_ID
 
 echo ""
-echo "Running validation query..."
+echo "Running BigQuery validation..."
 
 bq query --use_legacy_sql=false \
 'SELECT locale,COUNT(locale) as lcount FROM image_classification_dataset.image_text_detail GROUP BY locale ORDER BY lcount DESC'
 
 echo ""
-echo "Lab completed."
+echo "Challenge Lab Completed"
